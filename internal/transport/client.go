@@ -8,10 +8,12 @@ import (
 	"math/rand"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	http "github.com/bogdanfinn/fhttp"
 	tls_client "github.com/bogdanfinn/tls-client"
 	"github.com/bogdanfinn/tls-client/profiles"
+	"github.com/bsfdsagfadg/vertex/internal/netx"
 )
 
 const maxReadResponseBytes = 10 << 20
@@ -229,6 +231,9 @@ func (c *NetworkClient) createSession(timeoutSec int, proxyURI, entryProxyURI, r
 		tls_client.WithTimeoutSeconds(timeoutSec),
 		tls_client.WithClientProfile(prof),
 		tls_client.WithCookieJar(tls_client.NewCookieJar()),
+		// WithDialer preserves tls-client's HTTP/SOCKS proxy handshakes and TLS
+		// profiles. WithDialContext would override the built-in proxy routing.
+		tls_client.WithDialer(netx.NewDialer(time.Duration(timeoutSec) * time.Second)),
 	}
 
 	// 使用 injectProxy 挂载代理，失败则直接熔断，坚决不走静默直连！

@@ -38,22 +38,36 @@ func newHTTPTransport() *http.Transport {
 	}
 	transport := base.Clone()
 
-	dialer := &net.Dialer{ //nolint:exhaustruct
-		Timeout:   30 * time.Second,
-		KeepAlive: 30 * time.Second,
-	}
-	if resolver := newTermuxResolver(); resolver != nil {
-		dialer.Resolver = resolver
-	}
+	dialer := NewDialer(30 * time.Second)
 	transport.DialContext = dialer.DialContext
 	return transport
 }
 
-func newTermuxResolver() *net.Resolver {
+// NewDialer shares the Termux DNS fallback with transports outside net/http.
+// A nil Resolver preserves the system resolver on other platforms.
+func NewDialer(timeout time.Duration) net.Dialer {
+	return net.Dialer{ //nolint:exhaustruct
+		Timeout:   timeout,
+		KeepAlive: 30 * time.Second,
+		Resolver:  newTermuxResolver(),
+	}
+}
+
+// TermuxNameserverAddrs returns a copy of the discovered DNS server addresses.
+// Other DNS implementations (such as Mihomo) must use the same discovery path.
+// It returns nil outside Termux, or when no usable nameserver was discovered.
+func TermuxNameserverAddrs() []string {
 	if !isTermux() {
 		return nil
 	}
-	addrs := loadTermuxNameserverAddrs()
+	return loadTermuxNameserverAddrs()
+}
+
+func newTermuxResolver() *net.Resolver {
+	return newNameserverResolver(TermuxNameserverAddrs())
+}
+
+func newNameserverResolver(addrs []string) *net.Resolver {
 	if len(addrs) == 0 {
 		return nil
 	}

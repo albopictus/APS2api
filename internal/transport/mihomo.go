@@ -14,11 +14,34 @@ import (
 	"time"
 
 	"github.com/bsfdsagfadg/vertex/internal/config"
+	"github.com/bsfdsagfadg/vertex/internal/netx"
 	"github.com/bsfdsagfadg/vertex/internal/nodes"
 	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/component/proxydialer"
+	"github.com/metacubex/mihomo/component/resolver"
 	"github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/dns"
 )
+
+func init() { //nolint:gochecknoinits // Install before any proxy or DNS goroutine starts.
+	configureTermuxMihomoDNS(netx.TermuxNameserverAddrs())
+}
+
+func configureTermuxMihomoDNS(addrs []string) {
+	if len(addrs) == 0 {
+		return
+	}
+	servers := make([]dns.NameServer, 0, len(addrs))
+	for _, addr := range addrs {
+		servers = append(servers, dns.NameServer{Addr: addr}) //nolint:exhaustruct
+	}
+	// Mihomo resolves node hosts through its own SystemResolver, bypassing
+	// net.Dialer.Resolver. Configure it once during package initialization;
+	// keep node hostnames, SNI, dial options and remote destination DNS intact.
+	resolver.SystemResolver = dns.NewResolver(dns.Config{ //nolint:exhaustruct
+		Main: servers, Default: servers, IPv6: true,
+	}).Resolver
+}
 
 type proxyInfo struct {
 	proxy        constant.Proxy
